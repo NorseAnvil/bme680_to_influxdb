@@ -46,6 +46,8 @@ try:
     temp_offset = float(sensor['temp_offset'])
     interval = int(sensor['interval'])
     burn_in_time = float(sensor['burn_in_time'])
+    enable_https = sensor.getboolean('enable_https')
+    insecure_skip_verify = not sensor.getboolean('insecure_skip_verify')
 
 except TypeError:
     print("TypeError parsing config.ini file. Check boolean datatypes!")
@@ -71,7 +73,14 @@ print("hostname: ", hostname)
 print("location: ", location)
 
 # Create the InfluxDB object
-DBclient = InfluxDBClient(host, port, user, password, dbname)
+DBclient = InfluxDBClient(
+    host,
+    port,
+    user,
+    password,
+    dbname,
+    enable_https,
+    insecure_skip_verify)
 
 
 # BME680 configuration
@@ -95,7 +104,19 @@ else:
 start_time = time.time()
 curr_time = time.time()
 burn_in_data = []
-json_body = None
+
+
+json_body = ""
+
+hum = 0
+temp = 0
+press = 0
+iso = 0
+
+gas = 0
+air_quality_score = 0
+gas_baseline = 0
+hum_baseline = 0
 
 # method for creathe Json object to write to influx
 
