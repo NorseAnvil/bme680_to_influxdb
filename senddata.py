@@ -93,6 +93,70 @@ else:
 start_time = time.time()
 curr_time = time.time()
 burn_in_data = []
+json_body= None
+
+#method for creathe Json object to write to influx 
+def CreateJsonBodyWithGas():
+    json_body = [
+                    {
+                        "measurement": session,
+                        "tags": {
+                            "run": runNo,
+                            "raspid": raspid,
+                            "hostname": hostname,
+                            "location": location
+                        },
+                           "time": iso,
+                            "fields": {
+                            "temp": temp,
+                            "press": press,
+                            "humi": hum,
+                            "gas": gas,
+                            "iaq": air_quality_score,
+                            "gasbaseline": gas_baseline,
+                            "humbaseline": hum_baseline
+                        }
+                    }
+                ]
+    return(json_body)
+
+def CreateJsonBodyNoGas():
+    json_body = [
+                    {
+                        "measurement": session,
+                        "tags": {
+                            "run": runNo,
+                            "raspid": raspid,
+                            "hostname": hostname,
+                            "location": location
+                        },
+                        "time": iso,
+                        "fields": {
+                            "temp": temp,
+                            "press": press,
+                            "humi": hum,
+                        }
+                    }
+                ]
+    return(json_body)
+
+#Method for writing to influx
+def WriteToInflux():
+    try:
+        # Write JSON to InfluxDB
+        res = DBclient.write_points(json_body)
+        print(res)
+    except InfluxDBClientError as Influx_error:
+        print(Influx_error)
+        print("Error in the request from InfluxDBClient. Waiting 30s and trying again")
+        time.sleep(30)
+        pass
+    except InfluxDBServerError as Influx_error:
+        print(Influx_error)
+        print("Influx DB Server error thrown! Waiting 30s and trying again")
+        time.sleep(30)
+        pass
+
 
 # Run until keyboard out
 try:
@@ -181,65 +245,3 @@ try:
 
 except KeyboardInterrupt:
     pass
-
-
-def WriteToInflux(json_body):
-    try:
-        # Write JSON to InfluxDB
-        res = DBclient.write_points(json_body)
-        print(res)
-    except InfluxDBClientError as Influx_error:
-        print(Influx_error)
-        print("Error in the request from InfluxDBClient. Waiting 30s and trying again")
-        time.sleep(30)
-        pass
-    except InfluxDBServerError as Influx_error:
-        print(Influx_error)
-        print("Influx DB Server error thrown! Waiting 30s and trying again")
-        time.sleep(30)
-        pass
-
-
-def CreateJsonBodyWithGas():
-    json_body = [
-                    {
-                        "measurement": session,
-                        "tags": {
-                            "run": runNo,
-                            "raspid": raspid,
-                            "hostname": hostname,
-                            "location": location
-                        },
-                           "time": iso,
-                            "fields": {
-                            "temp": temp,
-                            "press": press,
-                            "humi": hum,
-                            "gas": gas,
-                            "iaq": air_quality_score,
-                            "gasbaseline": gas_baseline,
-                            "humbaseline": hum_baseline
-                        }
-                    }
-                ]
-    return(json_body)
-
-def CreateJsonBodyNoGas():
-    json_body = [
-                    {
-                        "measurement": session,
-                        "tags": {
-                            "run": runNo,
-                            "raspid": raspid,
-                            "hostname": hostname,
-                            "location": location
-                        },
-                        "time": iso,
-                        "fields": {
-                            "temp": temp,
-                            "press": press,
-                            "humi": hum,
-                        }
-                    }
-                ]
-    return(json_body)
