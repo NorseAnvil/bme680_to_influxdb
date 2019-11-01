@@ -3,11 +3,14 @@ import time  # for time and delay
 import sys  # for arguments
 import datetime  # for time and delay
 from influxdb import InfluxDBClient  # for collecting data
-from influxdb.exceptions import InfluxDBClientError # for handling client errors writing to influx
-from influxdb.exceptions import InfluxDBServerError # for handling server errors writing to influx
+# for handling client errors writing to influx
+from influxdb.exceptions import InfluxDBClientError
+# for handling server errors writing to influx
+from influxdb.exceptions import InfluxDBServerError
 import socket  # for hostname
 import bme680  # for sensor data
-import configparser # for parsing config.ini file
+import configparser  # for parsing config.ini file
+
 
 def get_raspid():
     # Extract serial from cpuinfo file
@@ -19,10 +22,9 @@ def get_raspid():
     return cpuserial
 
 
-
 # Allow user to set session and runno via args otherwise auto-generate
 if len(sys.argv) is 2:
-        configpath = sys.argv[1]
+    configpath = sys.argv[1]
 else:
     print("ParameterError: You must define the path to the config.ini!")
     sys.exit()
@@ -93,54 +95,59 @@ else:
 start_time = time.time()
 curr_time = time.time()
 burn_in_data = []
-json_body= None
+json_body = None
 
-#method for creathe Json object to write to influx 
+# method for creathe Json object to write to influx
+
+
 def CreateJsonBodyWithGas():
     json_body = [
-                    {
-                        "measurement": session,
-                        "tags": {
-                            "run": runNo,
-                            "raspid": raspid,
-                            "hostname": hostname,
-                            "location": location
-                        },
-                           "time": iso,
-                            "fields": {
-                            "temp": temp,
-                            "press": press,
-                            "humi": hum,
-                            "gas": gas,
-                            "iaq": air_quality_score,
-                            "gasbaseline": gas_baseline,
-                            "humbaseline": hum_baseline
-                        }
-                    }
-                ]
+        {
+            "measurement": session,
+            "tags": {
+                "run": runNo,
+                "raspid": raspid,
+                "hostname": hostname,
+                "location": location
+            },
+            "time": iso,
+            "fields": {
+                "temp": temp,
+                "press": press,
+                "humi": hum,
+                "gas": gas,
+                "iaq": air_quality_score,
+                "gasbaseline": gas_baseline,
+                "humbaseline": hum_baseline
+            }
+        }
+    ]
     return(json_body)
+
 
 def CreateJsonBodyNoGas():
     json_body = [
-                    {
-                        "measurement": session,
-                        "tags": {
-                            "run": runNo,
-                            "raspid": raspid,
-                            "hostname": hostname,
-                            "location": location
-                        },
-                        "time": iso,
-                        "fields": {
-                            "temp": temp,
-                            "press": press,
-                            "humi": hum,
-                        }
-                    }
-                ]
+        {
+            "measurement": session,
+            "tags": {
+                "run": runNo,
+                "raspid": raspid,
+                "hostname": hostname,
+                "location": location
+            },
+            "time": iso,
+            "fields": {
+                "temp": temp,
+                "press": press,
+                "humi": hum,
+            }
+        }
+    ]
     return(json_body)
 
-#Method for writing to influx
+# Method for writing to influx
+
+
 def WriteToInflux():
     try:
         # Write JSON to InfluxDB
@@ -171,14 +178,15 @@ try:
                 gas = sensor.data.gas_resistance
                 burn_in_data.append(gas)
                 print("Gas: {0} Ohms".format(gas))
-                # Sent data to influx while we wait for gas to establis baseline
+                # Sent data to influx while we wait for gas to establis
+                # baseline
                 if sensor.get_sensor_data():
                     hum = sensor.data.humidity
                     temp = sensor.data.temperature
                     press = sensor.data.pressure
                     iso = time.ctime()
                 CreateJsonBodyNoGas()
-                #Write data to influx
+                # Write data to influx
                 WriteToInflux()
                 time.sleep(1)
 
@@ -191,7 +199,10 @@ try:
         # calculation of air_quality_score (25:75, humidity:gas)
         hum_weighting = 0.25
 
-        print("Gas baseline: {0} Ohms, humidity baseline: {1:.2f} %RH\n".format(gas_baseline, hum_baseline))
+        print(
+            "Gas baseline: {0} Ohms, humidity baseline: {1:.2f} %RH\n".format(
+                gas_baseline,
+                hum_baseline))
 
     # Sensor read loop
     while True:
@@ -211,14 +222,17 @@ try:
 
                 # Calculate hum_score as the distance from the hum_baseline.
                 if hum_offset > 0:
-                    hum_score = (100 - hum_baseline - hum_offset) / (100 - hum_baseline) * (hum_weighting * 100)
+                    hum_score = (100 - hum_baseline - hum_offset) / \
+                        (100 - hum_baseline) * (hum_weighting * 100)
 
                 else:
-                    hum_score = (hum_baseline + hum_offset) / hum_baseline * (hum_weighting * 100)
+                    hum_score = (hum_baseline + hum_offset) / \
+                        hum_baseline * (hum_weighting * 100)
 
                 # Calculate gas_score as the distance from the gas_baseline.
                 if gas_offset > 0:
-                    gas_score = (gas / gas_baseline) * (100 - (hum_weighting * 100))
+                    gas_score = (gas / gas_baseline) * \
+                        (100 - (hum_weighting * 100))
                 else:
                     gas_score = 100 - (hum_weighting * 100)
 
@@ -232,7 +246,7 @@ try:
             else:
                 CreateJsonBodyNoGas()
 
-            #Write data to influx
+            # Write data to influx
             WriteToInflux()
             # Wait for next sample
             time.sleep(interval)
