@@ -1,5 +1,5 @@
 #############################################################################
-# Update in progress 31.10.2019
+# Update in progress 02.Nov.2019
 I am working on makeing a few changes to this great script made by @ayeks to suit my project.
 
 Things on the todolist:
