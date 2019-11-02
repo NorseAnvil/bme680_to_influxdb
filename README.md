@@ -7,8 +7,8 @@ Things on the todolist:
 - (done) Catch exceptions created if influxdb is not able to be contacted
 - (done) Add sending other temp, humidity and pressure to influx even when gas is calibrating
 - Add creation of a service to run this script during installation.
-- Refractor the code a bit to make more readable/organized for my eyes (done)
-- (done) change burn in value to avreage of the last 500 sec (last 5 min) (done)
+- Refractor the code a bit to make more readable/organized for my eyes
+- (done) change burn in value to avreage of the last 500 sec (last 5 min)
 
 # Other things on the horizion
 - adding option to set an custom baseline manually
