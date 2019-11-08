@@ -1,17 +1,20 @@
 #############################################################################
-# Update in progress 31.10.2019
-I am working on makeing a few changes to this great script made by @ayeks to suit my project.
+# Update in progress 8.11.2019
+I am working on makeing a few changes to this great script made by @ayeks to suit my projects.
 
-Things on the todolist:
+ # Changes done
 - Change burn in time to 30 min for gas senseor (done), I saw 30min recommended by Adafruit. (48H on first time run)
-- Catch exceptions created if influxdb is not able to be contacted (done)
+- Catch exceptions created if influxdb is not able to be contacted
+- Add HTTPS support on influxDB communication
+- Add possibility to ignore unsafe HTTPS warnings with influxDB
+- Refractor the code a bit to make more readable/organized (in my eyes)
 - Add sending other temp, humidity and pressure even when gas is calibrating
-- Add creation of a service to run this script during installation.
-- Refractor the code a bit to make more readable/organized for my eyes (done)
-- change burn in value to avreage of the last 500 sec (last 5 min) (done)
+- change burn in value to avreage of the last 500 sec (last 5 min)
+- Add new (fun) units, Torr/mmhg (Pressure) and Rankine (temprature)
 
-# Other things on the horizion
-- adding option to set an custom baseline manually
+# On the horizion
+- Add creation of a service to run this script during installation. (pending)
+- adding option to set an custom baseline manually (pending)
 #############################################################################
 
 # bme680_to_influxdb - BME680 Monitoring with InfluxDB
