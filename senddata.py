@@ -11,7 +11,6 @@ import socket  # for hostname
 import bme680  # for sensor data
 import configparser  # for parsing config.ini file
 import urllib3  # For option to disable warnings if using self signed certs
-import json
 
 
 def get_raspid():
@@ -52,7 +51,6 @@ try:
     temp_offset = float(sensor['temp_offset'])
     interval = int(sensor['interval'])
     burn_in_time = float(sensor['burn_in_time'])
-
 except TypeError:
     print("TypeError parsing config.ini file. Check boolean datatypes!")
     sys.exit()
@@ -82,14 +80,9 @@ print("hostname: ", hostname)
 print("location: ", location)
 
 # Create the InfluxDB object
-DBclient = InfluxDBClient(
-    host,
-    port,
-    user,
-    password,
-    dbname,
-    enable_https,
-    insecure_skip_verify)
+DBclient = InfluxDBClient(host,
+                          port, user, password, dbname,
+                          enable_https, insecure_skip_verify)
 
 
 # BME680 configuration
@@ -114,16 +107,19 @@ start_time = time.time()
 curr_time = time.time()
 burn_in_data = []
 
-
-json_body = []
+# initializing variables for json
+Influx_json = []
 hum = 0
 temp = 0
 press = 0
 iso = 0
-
+torr = 0
+rankine = 0
 gas = 0
 air_quality_score = 0
 gas_baseline = 0
+null = None
+
 # Set the humidity baseline to 40%, an optimal indoor humidity.
 hum_baseline = 40.0
 # This sets the balance between humidity and gas reading in the
@@ -131,22 +127,13 @@ hum_baseline = 40.0
 hum_weighting = 0.25
 
 
-# method for creathe Json object to write to influx
-def CreateJsonBodyWithGas(
-        session,
-        runNo,
-        raspid,
-        hostname,
-        location,
-        iso,
-        temp,
-        press,
-        hum,
-        gas,
-        air_quality_score,
-        gas_baseline,
-        hum_baseline):
-    json_body = [
+# method for create Json object to write to influx
+def CreateJsonBody(
+        session, runNo, raspid, hostname,
+        location, iso, temp, press, hum,
+        gas, air_quality_score, gas_baseline,
+        hum_baseline, torr_mmhg, rankine_si):
+    new_json = [
         {
             "measurement": session,
             "tags": {
@@ -163,78 +150,23 @@ def CreateJsonBodyWithGas(
                 "gas": gas,
                 "iaq": air_quality_score,
                 "gasbaseline": gas_baseline,
-                "humbaseline": hum_baseline
+                "humbaseline": hum_baseline,
+                "Torr": torr_mmhg,
+                "Rankine": rankine_si
             }
         }
     ]
-    return(json_body)
-
-
-def CreateTempJson(
-        session,
-        runNo,
-        raspid,
-        hostname,
-        location,
-        iso,
-        temp,
-        press,
-        hum,
-        hum_baseline):
-    json_body = [
-        {
-            "measurement": session,
-            "tags": {
-                "run": runNo,
-                "raspid": raspid,
-                "hostname": hostname,
-                "location": location
-            },
-            "time": iso,
-            "fields": {
-                "temp": temp,
-                "press": press,
-                "humi": hum,
-                "gas": None,
-                "iaq": None,
-                "gasbaseline": None,
-                "humbaseline": hum_baseline
-            }
-        }
-    ]
-    return(json_body)
-
-
-def CreateJsonBodyNoGas(session, runNo,raspid,hostname,location,iso,temp,press,hum):
-    json_body = [
-        {
-            "measurement": session,
-            "tags": {
-                "run": runNo,
-                "raspid": raspid,
-                "hostname": hostname,
-                "location": location
-            },
-            "time": iso,
-            "fields": {
-                "temp": temp,
-                "press": press,
-                "humi": hum,
-            }
-        }
-    ]
-    return(json_body)
+    return(new_json)
 
 # Method for writing to influx
-def WriteToInflux(json_body):
+def WriteToInflux(jsonToInflux):
     try:
         # Write JSON to InfluxDB
-        res = DBclient.write_points(json_body)
+        res = DBclient.write_points(jsonToInflux)
         print(res, " Influx written")
-        #print(json_body) #for debug
     except InfluxDBClientError as Influx_error:
         print(Influx_error)
-        print("Error in the request from InfluxDBClient. Waiting 30s and trying again")
+        print("Error in the request from InfluxDBClient! Waiting 30s and trying again")
         time.sleep(30)
         pass
     except InfluxDBServerError as Influx_error:
@@ -262,9 +194,11 @@ try:
                 hum = sensor.data.humidity
                 temp = sensor.data.temperature
                 press = sensor.data.pressure
+                torr = (101325 / 760) * (press * 100)
+                rankine = (temp + 273.15) * 9 / 5
                 iso = time.ctime()
                 # Write data to influx
-                json_body = CreateTempJson(
+                Influx_json = CreateJsonBody(
                     session,
                     runNo,
                     raspid,
@@ -274,8 +208,13 @@ try:
                     temp,
                     press,
                     hum,
-                    hum_baseline)
-                WriteToInflux(json_body)
+                    null,
+                    null,
+                    null,
+                    null,
+                    torr,
+                    rankine)
+                WriteToInflux(Influx_json)
             time.sleep(1)
 
         # Calculate Gas Baseline
@@ -289,15 +228,14 @@ try:
     # Sensor read loop
     while True:
         if sensor.get_sensor_data():
-
             hum = sensor.data.humidity
             temp = sensor.data.temperature
             press = sensor.data.pressure
-
+            torr = (101325 / 760) * (press * 100)
+            rankine = (temp + 273.15) * 9 / 5
             iso = time.ctime()
 
             if enable_gas:
-
                 hum_offset = hum - hum_baseline
                 gas = int(sensor.data.gas_resistance)
                 gas_offset = gas_baseline - gas
@@ -306,7 +244,6 @@ try:
                 if hum_offset > 0:
                     hum_score = (100 - hum_baseline - hum_offset) / \
                         (100 - hum_baseline) * (hum_weighting * 100)
-
                 else:
                     hum_score = (hum_baseline + hum_offset) / \
                         hum_baseline * (hum_weighting * 100)
@@ -323,7 +260,15 @@ try:
                 # Round to full
                 air_quality_score = round(air_quality_score, 0)
                 # Create Json body
-                json_body = CreateJsonBodyWithGas(
+                Influx_json = CreateJsonBody(
+                    session, runNo, raspid, hostname,
+                    location, iso, temp, press, hum,
+                    gas, air_quality_score,
+                    gas_baseline, hum_baseline,
+                    torr, rankine)
+
+            else:
+                Influx_json = CreateJsonBody(
                     session,
                     runNo,
                     raspid,
@@ -333,16 +278,16 @@ try:
                     temp,
                     press,
                     hum,
-                    gas,
-                    air_quality_score,
-                    gas_baseline,
-                    hum_baseline)
-
-            else:
-                json_body = CreateJsonBodyNoGas(session, runNo,raspid,hostname,location,iso,temp,press,hum)
+                    null,
+                    null,
+                    null,
+                    null,
+                    torr,
+                    rankine)
 
             # Write data to influx
-            WriteToInflux(json_body)
+            print("influxJson: ", Influx_json)
+            WriteToInflux(Influx_json)
             # Wait for next sample
             time.sleep(interval)
         else:
@@ -351,6 +296,5 @@ try:
 
         # Wait for next sample
         time.sleep(interval)
-
 except KeyboardInterrupt:
     pass
