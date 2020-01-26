@@ -1,0 +1,16 @@
+[Unit]
+Description=BME Sensor write to InfluxDB Service
+After=network-online.target
+
+[Service]
+ExecStart=/usr/bin/python3 /home/pi/scripts/bme680_to_influxdb/senddata.py "./config.ini"
+WorkingDirectory=/home/pi/scripts/bme680_to_influxdb/
+Environment=PYTHONUNBUFFERED=1
+StandardOutput=inherit
+StandardError=inherit
+Restart=always
+Type=notify
+User=pi
+
+[Install]
+WantedBy=default.target

@@ -1,20 +1,56 @@
 #############################################################################
-# Update in progress 8.11.2019
+# Update in progress 25.01.2020
 I am working on makeing a few changes to this great script made by @ayeks to suit my projects.
 
  # Changes done
+- Add a a service that can be installed and run the senddata.py script 
+- Added some exeption handleing for connection to influxDB on remote server
 - Change burn in time to 30 min for gas senseor (done), I saw 30min recommended by Adafruit. (48H on first time run)
 - Catch exceptions created if influxdb is not able to be contacted
 - Add HTTPS support on influxDB communication
 - Add possibility to ignore unsafe HTTPS warnings with influxDB
 - Refractor the code a bit to make more readable/organized (in my eyes)
 - Add sending other temp, humidity and pressure even when gas is calibrating
-- change burn in value to avreage of the last 500 sec (last 5 min)
-- Add new (fun) units, Torr/mmhg (Pressure) and Rankine (temprature)
+- Change burn in value to avreage of the last 500 sec (last 5 min)
 
-# On the horizion
-- Add creation of a service to run this script during installation. (pending)
-- adding option to set an custom baseline manually (pending)
+### BME680_to_InfluxDB on a RaspberryPI (Updated!)
+
+You need the [bme680 python lib](https://github.com/pimoroni/bme680), the InfluxDB client and the bme680_to_influx script.
+```
+pip3 install -r requirements.txt 
+git clone https://github.com/ayeks/bme680_to_influxdb
+```
+
+Go to the config.ini file and change the values to match your environment. You should change at least `host`, `user` and the `password`.
+
+## Execution
+# manualy run 
+simply call: `python3 senddata.py "./config.ini" `.
+
+Often you want your Raspberry to execute the senddata script automatically after it started. Use the following to do so:
+```
+# automated startup with rc.local:
+sudo nano /etc/rc.local
+python3 /home/pi/scrpts/senddata.py "/home/pi/scripts/config.ini" &
+```
+To use service included, run:
+sudo install_service.sh
+
+To uninstall, run:
+sudo uninstall_service.sh
+
+Note: 
+service is designed to run on user "PI" and 
+Files must be at location: "/home/pi/scripts/bme680_to_influxdb/BmeSensorInflux.service"
+Change location and user if desired
+# Check status on script with
+sudo systemctl status BmeSensorInflux.service 
+# Start service 
+sudo systemctl start BmeSensorInflux.service 
+# Stop service 
+sudo systemctl stop BmeSensorInflux.service
+# Check service's log 
+sudo journalctl -f -u BmeSensorInflux.service
 #############################################################################
 
 # bme680_to_influxdb - BME680 Monitoring with InfluxDB

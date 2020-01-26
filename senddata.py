@@ -3,15 +3,13 @@ import time  # for time and delay
 import sys  # for arguments
 import datetime  # for time and delay
 from influxdb import InfluxDBClient  # for collecting data
-# for handling client errors writing to influx
-from influxdb.exceptions import InfluxDBClientError
-# for handling server errors writing to influx
-from influxdb.exceptions import InfluxDBServerError
+from influxdb.exceptions import InfluxDBClientError # for handling client errors writing to influx
+from influxdb.exceptions import InfluxDBServerError # for handling server errors writing to influx
 import socket  # for hostname
 import bme680  # for sensor data
 import configparser  # for parsing config.ini file
-import urllib3  # For option to disable warnings if using self signed certs
-
+import urllib3  # For option to disable warnings if using self signed certs and htttp/https exceptions
+import systemd.daemon
 
 def get_raspid():
     # Extract serial from cpuinfo file
@@ -61,17 +59,19 @@ except ValueError:
     print("ValueError parsing config.ini file. Check number datatypes!")
     sys.exit()
 
-sensor = bme680.BME680()
-raspid = get_raspid()
+# Tell systemd that our service is ready
+systemd.daemon.notify('READY=1')
 
 # disable warnings with tls and selfsigned certs
 if disable_bad_https_warning:
     urllib3.disable_warnings()
 
-
+sensor = bme680.BME680()
+raspid = get_raspid()
 now = datetime.datetime.now()
 runNo = now.strftime("%Y%m%d%H%M")
 hostname = socket.gethostname()
+DBTimeout = 5  # 5 sec timeout for db writeing
 
 print("Session: ", session)
 print("runNo: ", runNo)
@@ -82,7 +82,7 @@ print("location: ", location)
 # Create the InfluxDB object
 DBclient = InfluxDBClient(host,
                           port, user, password, dbname,
-                          enable_https, insecure_skip_verify)
+                          enable_https, insecure_skip_verify, DBTimeout)
 
 
 # BME680 configuration
@@ -113,8 +113,6 @@ hum = 0
 temp = 0
 press = 0
 iso = 0
-torr = 0
-rankine = 0
 gas = 0
 air_quality_score = 0
 gas_baseline = 0
@@ -132,7 +130,7 @@ def CreateJsonBody(
         session, runNo, raspid, hostname,
         location, iso, temp, press, hum,
         gas, air_quality_score, gas_baseline,
-        hum_baseline, torr_mmhg, rankine_si):
+        hum_baseline):
     new_json = [
         {
             "measurement": session,
@@ -150,29 +148,40 @@ def CreateJsonBody(
                 "gas": gas,
                 "iaq": air_quality_score,
                 "gasbaseline": gas_baseline,
-                "humbaseline": hum_baseline,
-                "Torr": torr_mmhg,
-                "Rankine": rankine_si
+                "humbaseline": hum_baseline
             }
         }
     ]
     return(new_json)
 
 # Method for writing to influx
+
+
 def WriteToInflux(jsonToInflux):
     try:
         # Write JSON to InfluxDB
         res = DBclient.write_points(jsonToInflux)
-        print(res, " Influx written")
+        print(res, "Influx written")
     except InfluxDBClientError as Influx_error:
-        print(Influx_error)
-        print("Error in the request from InfluxDBClient! Waiting 30s and trying again")
-        time.sleep(30)
+        print(str(Influx_error))
+        print("Error in the request from InfluxDBClient!")
         pass
     except InfluxDBServerError as Influx_error:
-        print(Influx_error)
-        print("Influx DB Server error thrown! Waiting 30s and trying again")
-        time.sleep(30)
+        print(str(Influx_error))
+        print("Influx DB Server error thrown!")
+        pass
+    except ConnectionError as ConnError:
+        print("Error Connecting")
+        print(str(ConnError))
+        pass
+    except UrlExceptions.ConnectTimeoutError as Url1Error:
+        print("HTTP/HTTPS Connection Error:")
+        print(str(Url1Error))
+    except UrlExceptions.ConnectionError as Url2Error:
+        print("HTTP/HTTPS Connection Error:")
+        print(str(Url2Error))
+    except Exception as UnhandeledError:
+        print("Exception: " + str(UnhandeledError))
         pass
 
 
@@ -194,8 +203,6 @@ try:
                 hum = sensor.data.humidity
                 temp = sensor.data.temperature
                 press = sensor.data.pressure
-                torr = (101325 / 760) * (press * 100)
-                rankine = (temp + 273.15) * 9 / 5
                 iso = time.ctime()
                 # Write data to influx
                 Influx_json = CreateJsonBody(
@@ -211,9 +218,7 @@ try:
                     null,
                     null,
                     null,
-                    null,
-                    torr,
-                    rankine)
+                    null,)
                 WriteToInflux(Influx_json)
             time.sleep(1)
 
@@ -231,8 +236,6 @@ try:
             hum = sensor.data.humidity
             temp = sensor.data.temperature
             press = sensor.data.pressure
-            torr = (101325 / 760) * (press * 100)
-            rankine = (temp + 273.15) * 9 / 5
             iso = time.ctime()
 
             if enable_gas:
@@ -264,8 +267,7 @@ try:
                     session, runNo, raspid, hostname,
                     location, iso, temp, press, hum,
                     gas, air_quality_score,
-                    gas_baseline, hum_baseline,
-                    torr, rankine)
+                    gas_baseline, hum_baseline)
 
             else:
                 Influx_json = CreateJsonBody(
@@ -281,9 +283,7 @@ try:
                     null,
                     null,
                     null,
-                    null,
-                    torr,
-                    rankine)
+                    null)
 
             # Write data to influx
             print("influxJson: ", Influx_json)
@@ -296,5 +296,6 @@ try:
 
         # Wait for next sample
         time.sleep(interval)
+
 except KeyboardInterrupt:
     pass
